@@ -3,43 +3,53 @@ package main
 import (
 	"Simon-Weij/nill/src/cli"
 	"Simon-Weij/nill/src/router"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/joho/godotenv"
 )
 
+//go:embed examples/config.yaml
+var defaultConfig []byte
+
 func main() {
+	godotenv.Load()
+
 	configPath := cli.InitConfigPath()
 
-	_, err := ensureConfigPath(configPath)
+	if err := ensureConfigFileExists(configPath); err != nil {
+		panic(err)
+	}
+
+	config, err := router.ParseRoutes(configPath)
 	if err != nil {
 		panic(err)
 	}
 
-	router.DefineRoutes()
+	fmt.Printf("Loaded %d endpoints from config\n", len(config.Endpoints))
+
+	router.DefineRoutes(config)
 }
 
-func ensureConfigPath(path string) (*os.File, error) {
-	if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-		dir := filepath.Dir(path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, err
-		}
-
-		file, err := os.Create(path)
-		if err != nil {
-			return nil, err
-		}
-
-		return file, nil
-	} else if filepath.Ext(path) == "" {
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return nil, err
-		}
-		if file, err := os.Create(path + "/config.yaml"); err != nil {
-			return file, nil
-		}
+func ensureConfigFileExists(path string) error {
+	if filepath.Ext(path) == "" {
+		path = filepath.Join(path, "config.yaml")
 	}
-	return nil, fmt.Errorf("This file can't be used as configuration file")
+
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, defaultConfig, 0644); err != nil {
+		return err
+	}
+	return nil
 }

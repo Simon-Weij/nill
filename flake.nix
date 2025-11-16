@@ -32,11 +32,6 @@
                 pkgs.git
               ];
             };
-            shellHook = ''
-              set -a
-              source .env
-              set +a
-            '';
           };
         };
 
