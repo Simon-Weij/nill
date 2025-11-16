@@ -64,8 +64,45 @@ func registerEndpoints(r *gin.Engine, cfg *Config) {
 			method = "GET"
 		}
 
+		variables := getPathVariables(endpoint.Path)
+
+		for _, variable := range variables {
+			endpoint.Path = strings.ReplaceAll(endpoint.Path, "{"+variable+"}", ":"+variable)
+		}
+
+		ep := endpoint
 		r.Handle(method, endpoint.Path, func(c *gin.Context) {
-			c.JSON(endpoint.Response.Status, endpoint.Response.Body)
+			body := replaceVariables(ep.Response.Body, c)
+			c.JSON(ep.Response.Status, body)
 		})
 	}
+}
+
+func getPathVariables(path string) []string {
+	var variables []string
+
+	segments := strings.Split(path, "/")
+	for _, segment := range segments {
+		if strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") {
+			varName := strings.TrimSuffix(strings.TrimPrefix(segment, "{"), "}")
+			variables = append(variables, varName)
+		}
+	}
+
+	return variables
+}
+
+func replaceVariables(body map[string]interface{}, c *gin.Context) map[string]interface{} {
+	result := make(map[string]interface{})
+	for key, value := range body {
+		if str, ok := value.(string); ok {
+			for _, param := range c.Params {
+				str = strings.ReplaceAll(str, "{"+param.Key+"}", param.Value)
+			}
+			result[key] = str
+		} else {
+			result[key] = value
+		}
+	}
+	return result
 }
